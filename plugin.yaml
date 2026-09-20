@@ -1,0 +1,14 @@
+# Console: Hermes plugin manifest
+# Product name: Console (capital C)
+# Plugin key / enable slug: console  (Hermes keys are lowercase)
+name: console
+version: 1.0.0
+description: "Console: open a Chrome-dino TUI while Hermes works. Slash command /console."
+author: Takumi
+kind: standalone
+provides_hooks:
+  - on_session_start
+  - on_session_end
+  - pre_command
+  - subagent_stop
+  - agent_loop_stopped
