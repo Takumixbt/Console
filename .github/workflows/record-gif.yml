@@ -1,0 +1,38 @@
+# Regenerates docs/console-dino.gif on GitHub Actions (ffmpeg + Pillow).
+# Local: python3 scripts/record_dino_gif.py
+name: Record dino GIF
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/record_dino_gif.py"
+      - "console/**"
+      - ".github/workflows/record-gif.yml"
+jobs:
+  gif:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ffmpeg and fonts
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+      - name: Record GIF
+        run: |
+          python3 -m pip install pillow
+          python3 scripts/record_dino_gif.py
+      - name: Commit GIF if it changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/console-dino.gif
+          if git diff --cached --quiet; then
+            echo "GIF unchanged"
+          else
+            git commit -m "Add recorded Console dino GIF"
+            git push
+          fi
