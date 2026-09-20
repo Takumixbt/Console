@@ -2,11 +2,13 @@
 """Record a short Console dino clip into docs/console-dino.gif.
 
 Plays the real game engine (same renderer as the TUI) with a small
-auto-jumper, draws each sampled frame with DejaVu Sans Mono, then
-packs the PNGs with ffmpeg. Re-run from the repo root:
+auto-jumper and draws each sampled frame with DejaVu Sans Mono.
+Re-run from the repo root:
 
     python3 -m pip install pillow
     python3 scripts/record_dino_gif.py
+
+Pillow writes the GIF. ffmpeg is optional for a tighter palette.
 """
 
 from __future__ import annotations
@@ -25,7 +27,13 @@ from console.games.dino.game import DinoGame
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "console-dino.gif"
-FONT_PATH = Path("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf")
+FONT_CANDIDATES = (
+    Path("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"),
+    Path("/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Regular.ttf"),
+    Path("/usr/share/fonts/TTF/DejaVuSansMono.ttf"),
+    Path("/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf"),
+    Path("/usr/share/fonts/truetype/jetbrains-mono/JetBrainsMono-Regular.ttf"),
+)
 
 COLS = 80
 ROWS = 22
@@ -66,9 +74,9 @@ def _auto_play(game: DinoGame) -> None:
         game.handle_key(KeyEvent("space", False))
 
 
-def _cell_size(font: ImageFont.FreeTypeFont) -> tuple[int, int]:
+def _cell_size(font: ImageFont.ImageFont) -> tuple[int, int]:
     bbox = font.getbbox("M")
-    return bbox[2] - bbox[0], max(16, bbox[3] - bbox[1] + 4)
+    return max(6, bbox[2] - bbox[0]), max(12, bbox[3] - bbox[1] + 4)
 
 
 def _line_color(line: str) -> tuple[int, int, int]:
@@ -98,7 +106,7 @@ def collect_lines() -> list[list[str]]:
     return frames
 
 
-def draw_frame(lines: list[str], font: ImageFont.FreeTypeFont, cw: int, ch: int) -> Image.Image:
+def draw_frame(lines: list[str], font: ImageFont.ImageFont, cw: int, ch: int) -> Image.Image:
     width = PAD_X * 2 + cw * COLS
     height = PAD_Y * 2 + TITLE_H + ch * ROWS
     img = Image.new("RGB", (width, height), BG)
@@ -119,8 +127,23 @@ def draw_frame(lines: list[str], font: ImageFont.FreeTypeFont, cw: int, ch: int)
     return img
 
 
-def encode_gif(frame_dir: Path, n: int) -> None:
+def encode_gif_pillow(images: list[Image.Image]) -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
+    quantized = [
+        im.convert("P", palette=Image.Palette.ADAPTIVE, colors=48) for im in images
+    ]
+    quantized[0].save(
+        OUT,
+        save_all=True,
+        append_images=quantized[1:],
+        duration=int(round(1000 / FPS)),
+        loop=0,
+        optimize=True,
+        disposal=2,
+    )
+
+
+def encode_gif_ffmpeg(frame_dir: Path) -> None:
     palette = frame_dir / "palette.png"
     pattern = str(frame_dir / "frame_%04d.png")
     subprocess.run(
@@ -136,8 +159,6 @@ def encode_gif(frame_dir: Path, n: int) -> None:
             str(palette),
         ],
         check=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
     )
     subprocess.run(
         [
@@ -156,29 +177,42 @@ def encode_gif(frame_dir: Path, n: int) -> None:
             str(OUT),
         ],
         check=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
     )
-    if not OUT.is_file():
-        raise SystemExit(f"ffmpeg did not write {OUT}")
-    del n
+
+
+def _load_font() -> ImageFont.ImageFont:
+    for path in FONT_CANDIDATES:
+        if path.is_file():
+            return ImageFont.truetype(str(path), FONT_SIZE)
+    return ImageFont.load_default()
 
 
 def main() -> int:
-    if not FONT_PATH.is_file():
-        raise SystemExit(f"Missing font: {FONT_PATH}")
-    if shutil.which("ffmpeg") is None:
-        raise SystemExit("ffmpeg is required to pack the GIF")
-    font = ImageFont.truetype(str(FONT_PATH), FONT_SIZE)
+    font = _load_font()
     cw, ch = _cell_size(font)
     frames = collect_lines()
-    with tempfile.TemporaryDirectory(prefix="console-gif-") as tmp:
-        tmp_path = Path(tmp)
-        for i, lines in enumerate(frames):
-            draw_frame(lines, font, cw, ch).save(tmp_path / f"frame_{i:04d}.png")
-        encode_gif(tmp_path, len(frames))
+    images = [draw_frame(lines, font, cw, ch) for lines in frames]
+    used = "pillow"
+    if shutil.which("ffmpeg"):
+        with tempfile.TemporaryDirectory(prefix="console-gif-") as tmp:
+            tmp_path = Path(tmp)
+            for i, im in enumerate(images):
+                im.save(tmp_path / f"frame_{i:04d}.png")
+            try:
+                encode_gif_ffmpeg(tmp_path)
+                used = "ffmpeg"
+            except (OSError, subprocess.CalledProcessError) as exc:
+                print(f"ffmpeg failed ({exc}); using Pillow", file=sys.stderr)
+                encode_gif_pillow(images)
+    else:
+        encode_gif_pillow(images)
+    if not OUT.is_file() or OUT.stat().st_size < 32:
+        raise SystemExit(f"did not write a GIF at {OUT}")
+    header = OUT.read_bytes()[:6]
+    if header not in (b"GIF87a", b"GIF89a"):
+        raise SystemExit(f"output is not a GIF: {header!r}")
     size = OUT.stat().st_size
-    print(f"wrote {OUT} ({len(frames)} frames, {size / 1024:.1f} KB)")
+    print(f"wrote {OUT} ({len(frames)} frames, {size / 1024:.1f} KB, {used})")
     if size > 8 * 1024 * 1024:
         print("warning: GIF is larger than 8 MB", file=sys.stderr)
     return 0
