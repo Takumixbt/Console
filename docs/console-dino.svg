@@ -4,5 +4,27 @@
 <circle cx="40" cy="18" r="5" fill="#febc2e"/>
 <circle cx="58" cy="18" r="5" fill="#28c840"/>
 <text x="78" y="23" fill="#ebebeb" font-size="13" font-family="ui-monospace, SFMono-Regular, DejaVu Sans Mono, monospace">Console</text>
-<text xml:space="preserve" x="18" y="48" fill="#d2d2d2" font-size="11" font-family="ui-monospace, SFMono-Regular, DejaVu Sans Mono, monospace" style="white-space:pre" opacity="1">SEE_LOCAL_FILE</text>
+<text xml:space="preserve" x="18" y="48" fill="#d2d2d2" font-size="11" font-family="ui-monospace, SFMono-Regular, DejaVu Sans Mono, monospace" style="white-space:pre" opacity="1">Console · dino                                                   HI 00000  00000
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                ▄█▄                                                            
+               █████                                                           
+          ▄    ██▀▀█                                                           
+          ████████▀                                                            
+           ██████                                                              
+            ▀  ▀                                                               
+                                                                                
+                                                                                
+▀▀▀▀▄▀▀▀▀▀▀▓▀▀▀▀▀▀▀▄▀▀▀▀▀▀▀▀▄▀▀▀▀▀▀▀▓▀▀▀▀▀▀▀▄▀▀▀▀▀▀▀▀▄▀▀▀▀▀▀▀▓▀▀▀▀▀▀▀▄▀▀▀▀▀▀▀▀▄▀▀▀
+                                                                                
+                       Space/↑ jump   ↓ duck   Esc leave                        <animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.0370;0.0370;1" dur="3240ms" repeatCount="indefinite"/></text>
 </svg>
