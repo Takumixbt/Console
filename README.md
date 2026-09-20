@@ -12,7 +12,7 @@
 
 v1 is Hermes + dino. Later games can register behind the same `/console` door. No network, no telemetry, no secrets. Tool calls never move the dino.
 
-The GIF above is real engine output (scripted jumps, same renderer as the TUI). Recreate it with `python3 scripts/record_dino_gif.py` (needs Pillow and ffmpeg).
+The GIF above is real engine output (scripted jumps, same renderer as the TUI). Recreate it with `python3 scripts/record_dino_gif.py` (needs Pillow; ffmpeg optional).
 
 ## Install
 
