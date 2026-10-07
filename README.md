@@ -45,7 +45,7 @@ Set `CONSOLE_HOTKEY` (for example `c-g`) to use a different key, and `CONSOLE_SO
 
 `/console chess` opens a menu: pick the opponent, how strong it plays, and your side.
 
-![Chess in Windows Terminal](docs/console-chess.png)
+![Chess in Console](docs/console-chess.gif)
 
 - **Hermes model**: the move comes from the model Hermes is using, through the plugin's `ctx.llm`, so there are no extra keys to set up. It is shown the position, the move history and the full list of legal moves, and a reply that is not one of them is sent back for another try (three tries, then the built-in engine plays that move and says so). A model takes a few seconds per move. To use a different model for chess, set `CONSOLE_CHESS_MODEL` (and `CONSOLE_CHESS_PROVIDER`) and allow it in Hermes' `config.yaml` under `plugins.entries.console.llm`.
 - **Built-in engine**: a small alpha-beta engine in pure Python, four strengths from Beginner to Strong.
