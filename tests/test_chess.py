@@ -205,3 +205,57 @@ def test_model_opponent_needs_hermes(monkeypatch):
         opponents.ModelOpponent()
     monkeypatch.setattr(opponents, "_LLM", FakeLlm())
     assert ("model", "Hermes model") in opponents.available()
+
+
+# -- picking the model --------------------------------------------------------------------
+
+
+@pytest.fixture
+def model_game(monkeypatch):
+    llm = FakeLlm("e4", "e5", "Nf3")
+    monkeypatch.setattr(opponents, "_LLM", llm)
+    monkeypatch.setattr(opponents, "load_catalog", lambda refresh=False: opponents.Catalog(
+        [("anthropic", "Anthropic", ["claude-a", "claude-b", "claude-c"]), ("xai", "xAI", ["grok-1"])], ("xai", "grok-1")))
+    g = ChessGame()
+    g.level = 0
+    for _ in range(100):
+        if g.catalog is not None:
+            break
+        time.sleep(0.02)
+    g.opp_index = [k for k, _ in g.opp_options].index("model")
+    return g, llm
+
+
+def test_model_menu_swaps_strength_for_provider_and_model(model_game):
+    g, _ = model_game
+    assert g._menu_rows() == ["opponent", "provider", "model", "side"]
+    assert "the one Hermes is running" in g._model_text()
+    assert len(g.hint().split("\n")) == g.MENU_LINES
+
+
+def test_chosen_model_is_sent_to_hermes(model_game):
+    g, llm = model_game
+    g.menu_row = 1
+    key(g, "right")  # provider 1: anthropic
+    g.menu_row = 2
+    key(g, "right")  # claude-b
+    assert "claude-b" in g._model_text()
+    g.side = 1  # we are Black, so the model moves first
+    key(g, "enter")
+    wait(g, lambda: g.history)
+    assert g.opponent.label.startswith("Hermes model")
+    assert (g.opponent.provider, g.opponent.model) == ("anthropic", "claude-b")
+
+
+def test_changing_provider_resets_the_model_and_comma_jumps(model_game):
+    g, _ = model_game
+    g.menu_row = 1
+    key(g, "right")
+    g.menu_row = 2
+    key(g, ".")
+    assert g.model_index == 10 % 3
+    g.menu_row = 1
+    key(g, "right")
+    assert g.model_index == 0 and "xAI" in g._provider_text()
+    key(g, "right")  # wraps back to "Hermes default"
+    assert g.prov_index == 0

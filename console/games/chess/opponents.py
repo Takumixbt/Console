@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import random
 import re
+import threading
 
 from . import engine
 from .rules import Board, uci
@@ -24,6 +25,56 @@ def set_llm(llm) -> None:
 
 def llm_available() -> bool:
     return _LLM is not None
+
+
+# -- the models Hermes has -------------------------------------------------------------------
+
+
+class Catalog:
+    """Every provider Hermes has credentials for, with its models, plus what Hermes is running now."""
+
+    def __init__(self, providers=None, current=("", "")) -> None:
+        self.providers: list[tuple[str, str, list[str]]] = providers or []  # (slug, name, [model ids])
+        self.current = current  # (provider slug, model id)
+
+
+_CATALOG: Catalog | None = None
+_CATALOG_LOCK = threading.Lock()
+
+
+def load_catalog(refresh: bool = False) -> Catalog:
+    """Ask Hermes for its model picker list. Slow (it may hit the network), so run it off the UI thread."""
+    global _CATALOG
+    with _CATALOG_LOCK:
+        if _CATALOG is not None and not refresh:
+            return _CATALOG
+    providers: list[tuple[str, str, list[str]]] = []
+    current = ("", "")
+    try:
+        from hermes_cli.config import load_config_readonly
+        from hermes_cli.model_switch import list_picker_providers
+
+        cfg = load_config_readonly() or {}
+        model_cfg = cfg.get("model") or {}
+        if isinstance(model_cfg, dict):
+            current = (str(model_cfg.get("provider") or ""), str(model_cfg.get("default") or model_cfg.get("model") or ""))
+        rows = list_picker_providers(
+            current_provider=current[0],
+            current_base_url=str(model_cfg.get("base_url") or "") if isinstance(model_cfg, dict) else "",
+            user_providers=cfg.get("providers") if isinstance(cfg.get("providers"), dict) else None,
+            custom_providers=cfg.get("custom_providers") if isinstance(cfg.get("custom_providers"), list) else None,
+            current_model=current[1],
+        )
+        for row in rows:
+            models = [m for m in row.get("models", []) if isinstance(m, str) and m]
+            if models:
+                providers.append((str(row.get("slug", "")), str(row.get("name") or row.get("slug", "")), models))
+    except Exception:
+        pass  # not inside Hermes (or an older one): the menu simply offers "Hermes default"
+    catalog = Catalog(providers, current)
+    with _CATALOG_LOCK:
+        _CATALOG = catalog
+    return catalog
 
 
 class Opponent:
@@ -101,16 +152,18 @@ class ModelOpponent(Opponent):
 
     ATTEMPTS = 3
 
-    def __init__(self, fallback_level: int = 2) -> None:
+    def __init__(self, fallback_level: int = 2, provider: str = "", model: str = "") -> None:
         if _LLM is None:
             raise RuntimeError("no Hermes model available (open Console from Hermes)")
-        self.label = "Hermes model"
+        self.provider = provider
+        self.model = model
+        self.label = f"Hermes model ({model})" if model else "Hermes model"
         self.fallback = EngineOpponent(fallback_level)
 
     def _call(self, messages) -> str:
         kwargs = {"max_tokens": 600, "timeout": 120, "purpose": "console chess move"}
-        model = os.environ.get("CONSOLE_CHESS_MODEL")
-        provider = os.environ.get("CONSOLE_CHESS_PROVIDER")
+        model = self.model or os.environ.get("CONSOLE_CHESS_MODEL")
+        provider = self.provider or os.environ.get("CONSOLE_CHESS_PROVIDER")
         if model:
             kwargs["model"] = model
         if provider:
@@ -160,12 +213,12 @@ def available() -> list[tuple[str, str]]:
     return out
 
 
-def make(kind: str, level_index: int) -> Opponent:
+def make(kind: str, level_index: int, provider: str = "", model: str = "") -> Opponent:
     if kind == "stockfish":
         return StockfishOpponent(level_index)
     if kind == "model":
-        return ModelOpponent()
+        return ModelOpponent(provider=provider, model=model)
     return EngineOpponent(level_index)
 
 
-__all__ = ["Opponent", "available", "make", "set_llm", "llm_available", "uci"]
+__all__ = ["Catalog", "Opponent", "available", "load_catalog", "make", "set_llm", "llm_available", "uci"]

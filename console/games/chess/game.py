@@ -104,6 +104,7 @@ class ChessGame(Game):
     width = SIDE
     height = SIDE
     HINT_LINES = 4
+    MENU_LINES = 5  # the model opponent has one more row (provider and model)
 
     def __init__(self) -> None:
         self.board = Board()
@@ -112,6 +113,9 @@ class ChessGame(Game):
         self.opp_index = 0
         self.level = 1
         self.side = 0  # 0 white, 1 black, 2 random
+        self.catalog: opponents.Catalog | None = None  # the models Hermes has; loaded in the background
+        self.prov_index = 0  # 0 = whatever Hermes is running, then one entry per provider
+        self.model_index = 0
         self.menu_row = 0
         self.menu_error = ""
         self.human = WHITE
@@ -132,24 +136,50 @@ class ChessGame(Game):
         self._frame: Frame | None = None
         self._dirty = True
         self._now = 0.0
+        if opponents.llm_available():
+            threading.Thread(target=self._load_catalog, name="chess-models", daemon=True).start()
+
+    def _load_catalog(self) -> None:
+        self.catalog = opponents.load_catalog()
+        self._dirty = True
 
     # -- menu --------------------------------------------------------------------------
+
+    def _menu_rows(self) -> list[str]:
+        """Which rows the menu shows: the model opponent swaps Strength for Provider and Model."""
+        if self.opp_options[self.opp_index % len(self.opp_options)][0] == "model":
+            return ["opponent", "provider", "model", "side"]
+        return ["opponent", "strength", "side"]
+
+    def _models(self) -> list[str]:
+        if self.catalog is None or self.prov_index == 0:
+            return []
+        return self.catalog.providers[self.prov_index - 1][2]
 
     def _menu_keys(self, key: str) -> None:
         self.opp_options = opponents.available()
         self.opp_index %= len(self.opp_options)
-        rows = 3
+        rows = self._menu_rows()
+        self.menu_row = min(self.menu_row, len(rows) - 1)
         if key == "up":
-            self.menu_row = (self.menu_row - 1) % rows
+            self.menu_row = (self.menu_row - 1) % len(rows)
         elif key == "down":
-            self.menu_row = (self.menu_row + 1) % rows
-        elif key in ("left", "right"):
-            d = 1 if key == "right" else -1
-            if self.menu_row == 0:
+            self.menu_row = (self.menu_row + 1) % len(rows)
+        elif key in ("left", "right", ",", "."):
+            d = 1 if key in ("right", ".") else -1
+            step = d * (10 if key in (",", ".") else 1)
+            row = rows[self.menu_row]
+            if row == "opponent":
                 self.opp_index = (self.opp_index + d) % len(self.opp_options)
-            elif self.menu_row == 1:
+                self.menu_row = min(self.menu_row, len(self._menu_rows()) - 1)
+            elif row == "strength":
                 self.level = (self.level + d) % len(LEVELS)
-            else:
+            elif row == "provider" and self.catalog is not None:
+                self.prov_index = (self.prov_index + d) % (len(self.catalog.providers) + 1)
+                self.model_index = 0
+            elif row == "model" and self._models():
+                self.model_index = (self.model_index + step) % len(self._models())
+            elif row == "side":
                 self.side = (self.side + d) % 3
         elif key in ("enter", "space"):
             self._start()
@@ -159,7 +189,11 @@ class ChessGame(Game):
         try:
             if self.opponent:
                 self.opponent.close()
-            self.opponent = opponents.make(kind, self.level)
+            provider, model = "", ""
+            if kind == "model" and self.prov_index > 0 and self.catalog is not None:
+                provider = self.catalog.providers[self.prov_index - 1][0]
+                model = self._models()[self.model_index]
+            self.opponent = opponents.make(kind, self.level, provider, model)
         except Exception as exc:
             self.menu_error = str(exc)
             return
@@ -373,19 +407,24 @@ class ChessGame(Game):
 
     def hint(self) -> str:
         lines = self._lines()
-        lines += [""] * (self.HINT_LINES - len(lines))
-        return "\n".join(lines[: self.HINT_LINES])
+        n = self.MENU_LINES if self.mode == "menu" and opponents.llm_available() else self.HINT_LINES
+        lines += [""] * (n - len(lines))
+        return "\n".join(lines[:n])
 
     def _lines(self) -> list[str]:
         if self.mode == "menu":
-            names = [o[1] for o in self.opp_options]
-            opp = names[self.opp_index % len(names)]
-            strength = "n/a (the model decides)" if self.opp_options[self.opp_index % len(self.opp_options)][0] == "model" else LEVELS[self.level].name
-            side = ("White", "Black", "Random")[self.side]
-            rows = [f"Opponent: {opp}", f"Strength: {strength}", f"You play: {side}"]
-            shown = [("> " if i == self.menu_row else "  ") + t.ljust(36) for i, t in enumerate(rows)]
-            tail = self.menu_error or "Up/Down choose   Left/Right change   Enter starts   Esc back to Hermes"
-            return [shown[0], shown[1], shown[2], tail]
+            kind = self.opp_options[self.opp_index % len(self.opp_options)][0]
+            texts = {
+                "opponent": f"Opponent: {self.opp_options[self.opp_index % len(self.opp_options)][1]}",
+                "strength": f"Strength: {LEVELS[self.level].name}",
+                "provider": f"Provider: {self._provider_text()}",
+                "model": f"Model: {self._model_text()}",
+                "side": f"You play: {('White', 'Black', 'Random')[self.side]}",
+            }
+            rows = self._menu_rows()
+            shown = [("> " if i == self.menu_row else "  ") + texts[r] for i, r in enumerate(rows)]
+            tail = self.menu_error or ("Up/Down row   Left/Right change   , . jump 10   Enter starts   Esc back" if kind == "model" else "Up/Down choose   Left/Right change   Enter starts   Esc back to Hermes")
+            return shown + [tail]
         if self.mode == "promote":
             return ["Promote to:  Q queen   R rook   B bishop   N knight", "Backspace cancels"]
         if self.mode == "over":
@@ -402,6 +441,23 @@ class ChessGame(Game):
             lines.append(self.note)
         lines.append("Arrows move   Enter select/move   Backspace cancel   U take back   F flip   N new   R resign   Esc leave")
         return lines
+
+    def _provider_text(self) -> str:
+        if self.catalog is None:
+            return "loading..."
+        if self.prov_index == 0:
+            return "Hermes default"
+        slug, name, models = self.catalog.providers[self.prov_index - 1]
+        return f"{name} ({len(models)} models)"
+
+    def _model_text(self) -> str:
+        if self.catalog is None:
+            return "loading..."
+        models = self._models()
+        if not models:
+            current = self.catalog.current[1]
+            return f"the one Hermes is running ({current})" if current else "the one Hermes is running"
+        return f"{models[self.model_index]}   {self.model_index + 1}/{len(models)}"
 
     def _last_san(self) -> str:
         return " ".join(self.history[-6:])

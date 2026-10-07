@@ -47,7 +47,20 @@ Set `CONSOLE_HOTKEY` (for example `c-g`) to use a different key, and `CONSOLE_SO
 
 ![Chess in Console](docs/console-chess.gif)
 
-- **Hermes model**: the move comes from the model Hermes is using, through the plugin's `ctx.llm`, so there are no extra keys to set up. It is shown the position, the move history and the full list of legal moves, and a reply that is not one of them is sent back for another try (three tries, then the built-in engine plays that move and says so). A model takes a few seconds per move. To use a different model for chess, set `CONSOLE_CHESS_MODEL` (and `CONSOLE_CHESS_PROVIDER`) and allow it in Hermes' `config.yaml` under `plugins.entries.console.llm`.
+- **Hermes model**: the move comes from the model Hermes is using, through the plugin's `ctx.llm`, so there are no extra keys to set up. It is shown the position, the move history and the full list of legal moves, and a reply that is not one of them is sent back for another try (three tries, then the built-in engine plays that move and says so). A model takes a few seconds per move. The chess menu lists every provider and model your Hermes has credentials for (the same list as `/model`). Pick one with Left/Right on the Provider and Model rows, `,` and `.` jump ten at a time, or leave it on Hermes default. Hermes only lets a plugin choose its own model when you allow it, so add this to `config.yaml`:
+
+```yaml
+plugins:
+  entries:
+    console:
+      llm:
+        allow_provider_override: true
+        allow_model_override: true
+        allowed_providers: ['*']
+        allowed_models: ['*']
+```
+
+Without it chess still works, but only with the model Hermes is running. `CONSOLE_CHESS_MODEL` and `CONSOLE_CHESS_PROVIDER` set the default for the menu's "Hermes default" row.
 - **Built-in engine**: a small alpha-beta engine in pure Python, four strengths from Beginner to Strong.
 - **Stockfish**: used automatically, as a third option, when `stockfish` is on your `PATH` (or `CONSOLE_STOCKFISH` points at it).
 
