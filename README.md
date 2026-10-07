@@ -81,4 +81,4 @@ Another game plugs in under `console/games/` with the `@register("name")` decora
 
 ## Credits
 
-The sprites, sounds and game logic come from the Chromium project (BSD 3-clause, see `NOTICE`). Console itself is MIT.
+The sprites, sounds and game logic come from the Chromium project, Console itself is MIT.
