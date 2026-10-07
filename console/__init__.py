@@ -1,6 +1,3 @@
-"""Console — a small multi-game terminal for Hermes (and standalone play)."""
+"""Console: play Chrome's dino game (and more) inside your terminal while Hermes works."""
 
-from .registry import GAMES, default_game, get_game
-
-__version__ = "1.0.0"
-__all__ = ["GAMES", "default_game", "get_game", "__version__"]
+__version__ = "2.0.0"

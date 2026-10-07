@@ -1,8 +1,8 @@
 """Hermes plugin root.
 
-Hermes loads this file as ``hermes_plugins.console`` via
-``spec_from_file_location`` and treats the repository directory as the
-package path, so ``console/`` is imported as a submodule.
+Hermes loads this file as ``hermes_plugins.console`` and treats the repository
+folder as the package, so the ``console/`` directory is a submodule and every
+import inside it is relative.
 """
 
 from .console.hermes_plugin import register
