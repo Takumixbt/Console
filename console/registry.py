@@ -6,6 +6,7 @@ from .catalog import DEFAULT_GAME, GAMES, register
 from .games.base import Game
 
 # Built-in games register themselves on import.
+from .games.chess.game import ChessGame  # noqa: F401
 from .games.dino.game import DinoGame  # noqa: F401
 
 __all__ = ["DEFAULT_GAME", "GAMES", "get_game", "register"]

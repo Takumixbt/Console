@@ -33,9 +33,9 @@ class Layout:
     height: int
 
 
-def compute_layout(cols: int, rows: int, cell_w: int, cell_h: int, fw: int, fh: int) -> Layout | None:
-    """Largest whole-number scale that fits; two text rows stay free for help text."""
-    avail_rows = max(1, rows - 2)
+def compute_layout(cols: int, rows: int, cell_w: int, cell_h: int, fw: int, fh: int, reserve: int = 2) -> Layout | None:
+    """Largest whole-number scale that fits; ``reserve`` text rows stay free for help text."""
+    avail_rows = max(1, rows - reserve)
     scale = min((cols * cell_w) // fw, (avail_rows * cell_h) // fh)
     if scale < 1:
         return None
@@ -66,10 +66,10 @@ def compose(frame: Frame, layout: Layout) -> bytes:
     return bytes(img)
 
 
-def _page_style(gray: int) -> bytes:
+def _page_style(rgb: tuple) -> bytes:
     """SGR that makes the terminal itself the page: background and a readable ink."""
-    ink = 83 if gray > 127 else 172
-    return b"\x1b[0m\x1b[48;2;%d;%d;%dm\x1b[38;2;%d;%d;%dm" % (gray, gray, gray, ink, ink, ink)
+    ink = 83 if sum(rgb) / 3 > 127 else 172
+    return b"\x1b[0m\x1b[48;2;%d;%d;%dm\x1b[38;2;%d;%d;%dm" % (rgb[0], rgb[1], rgb[2], ink, ink, ink)
 
 
 def _status_text(game: Game) -> tuple[str, str]:
@@ -123,7 +123,8 @@ def _play(game: Game, term: Terminal) -> str:
     encoder = SixelEncoder()
     debug = bool(os.environ.get("CONSOLE_DEBUG"))
     size = term.size()
-    layout = compute_layout(size[0], size[1], caps.cell_w, caps.cell_h, game.width, game.height)
+    reserve = game.hint().count("\n") + 2
+    layout = compute_layout(size[0], size[1], caps.cell_w, caps.cell_h, game.width, game.height, reserve)
     last_text = None
     last_page = None
     last_picture = None
@@ -150,12 +151,17 @@ def _play(game: Game, term: Terminal) -> str:
                 new_size = term.size()
                 if new_size != size:
                     size = new_size
-                    layout = compute_layout(size[0], size[1], caps.cell_w, caps.cell_h, game.width, game.height)
+                    layout = compute_layout(size[0], size[1], caps.cell_w, caps.cell_h, game.width, game.height, reserve)
                     last_text = last_page = last_picture = None
 
             p0 = time.perf_counter()
             game.tick(t)
             prof["tick"] = prof["tick"] * 0.9 + (time.perf_counter() - p0) * 100
+            want = game.hint().count("\n") + 2
+            if want != reserve:
+                reserve = want
+                layout = compute_layout(size[0], size[1], caps.cell_w, caps.cell_h, game.width, game.height, reserve)
+                last_text = last_page = last_picture = None
             out = []
             picture_added = False
             if layout is None:
@@ -167,7 +173,7 @@ def _play(game: Game, term: Terminal) -> str:
                 frame = game.frame(t)
                 prof["frame"] = prof["frame"] * 0.9 + (time.perf_counter() - p0) * 100
                 if frame.page != last_page:
-                    out.append(_page_style(frame.page) + b"\x1b[2J")
+                    out.append(_page_style(frame.palette[frame.page]) + b"\x1b[2J")
                     last_page = frame.page
                     last_text = last_picture = None
                 picture = (frame.width, frame.pixels)
@@ -189,7 +195,9 @@ def _play(game: Game, term: Terminal) -> str:
                     last_text = text
                     cols, rows = size
                     bell = b"\x07" if status.startswith("Hermes finished") else b""
-                    out.append(_cup(rows - 1, 1) + b"\x1b[2K" + hint.center(cols)[:cols].encode())
+                    lines = hint.split("\n")
+                    for i, line in enumerate(lines):
+                        out.append(_cup(rows - len(lines) + i, 1) + b"\x1b[2K" + line.center(cols)[:cols].encode())
                     out.append(_cup(rows, 1) + b"\x1b[2K" + status.center(cols)[:cols].encode() + bell)
             if out:
                 p0 = time.perf_counter()

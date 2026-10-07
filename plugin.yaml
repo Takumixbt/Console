@@ -2,7 +2,7 @@
 # Product name: Console (capital C); plugin key / enable slug: console (lowercase)
 name: console
 version: 2.0.0
-description: "Console: play Chrome's dino game inside your terminal while Hermes works. /console, or Ctrl+O any time."
+description: "Console: play Chrome's dino game or chess (against a Hermes model or the computer) inside your terminal while Hermes works. /console, or Ctrl+O any time."
 author: Takumi
 kind: standalone
 provides_hooks:

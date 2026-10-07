@@ -1,6 +1,6 @@
 # Console
 
-Chrome's dino game, inside your terminal, one keypress away from [Hermes Agent](https://hermes-agent.nousresearch.com/).
+Chrome's dino game and chess, inside your terminal, one keypress away from [Hermes Agent](https://hermes-agent.nousresearch.com/). Play chess against the model Hermes is running, or against the computer.
 
 ![Console dino](docs/console-dino.gif)
 
@@ -29,7 +29,8 @@ hermes plugins enable console
 
 | | |
 | --- | --- |
-| `/console` | open the game inside Hermes |
+| `/console` | open the dino inside Hermes |
+| `/console chess` | open chess |
 | `Ctrl+O` | open it any time, **even while the agent is working** |
 | `Space` or `Up` | start, jump (hold for a higher jump), restart after game over |
 | `Down` | duck, or drop fast in mid-air |
@@ -40,10 +41,23 @@ Hermes only runs a slash command once the agent is idle, so a `/console` typed m
 
 Set `CONSOLE_HOTKEY` (for example `c-g`) to use a different key, and `CONSOLE_SOUND=0` to mute the sounds. Your high score is kept in `console.json` next to the rest of Hermes' files.
 
+## Chess
+
+`/console chess` opens a menu: pick the opponent, how strong it plays, and your side.
+
+![Chess in Windows Terminal](docs/console-chess.png)
+
+- **Hermes model**: the move comes from the model Hermes is using, through the plugin's `ctx.llm`, so there are no extra keys to set up. It is shown the position, the move history and the full list of legal moves, and a reply that is not one of them is sent back for another try (three tries, then the built-in engine plays that move and says so). A model takes a few seconds per move. To use a different model for chess, set `CONSOLE_CHESS_MODEL` (and `CONSOLE_CHESS_PROVIDER`) and allow it in Hermes' `config.yaml` under `plugins.entries.console.llm`.
+- **Built-in engine**: a small alpha-beta engine in pure Python, four strengths from Beginner to Strong.
+- **Stockfish**: used automatically, as a third option, when `stockfish` is on your `PATH` (or `CONSOLE_STOCKFISH` points at it).
+
+Arrow keys move the cursor, `Enter` picks up a piece and puts it down (legal squares are dotted, captures are ringed), `Backspace` cancels, `U` takes a move back, `F` flips the board, `N` starts a new game, `R` resigns. Castling, en passant, promotion, check, checkmate, stalemate, insufficient material, threefold repetition and the fifty-move rule are all handled. The rules code is checked against the standard perft node counts for seven well-known test positions.
+
 Without Hermes:
 
 ```bash
-python -m console            # play
+python -m console            # play the dino
+python -m console chess      # play chess against the engine
 python -m console --demo     # watch it play itself
 python -m console --list     # available games
 ```
@@ -74,6 +88,7 @@ console/runner.py          the screen loop (layout, keys in, pictures out)
 console/terminal.py        console input with real key-up, probing, background writer
 console/gfx/               PNG decoder, canvas, sixel encoder
 console/games/dino/        the port of Chromium's dino game, plus sounds and a demo autopilot
+console/games/chess/       rules, engine, opponents (engine, Stockfish, Hermes model) and the board
 tools/                     the Chrome trace recorder and the replay checker
 ```
 

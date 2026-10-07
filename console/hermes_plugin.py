@@ -172,9 +172,15 @@ def register(ctx) -> None:
     """Hermes ``register(ctx)`` entry point."""
     if not hasattr(ctx, "register_command"):
         raise RuntimeError("Console needs a Hermes build with plugin slash commands (ctx.register_command).")
-    description = "Play Chrome's dino game in this terminal. Esc returns."
     try:
-        ctx.register_command("console", handle_console, description=description, args_hint="[dino]")
+        from .games.chess import opponents
+
+        opponents.set_llm(ctx.llm)  # lets chess ask the model Hermes is running
+    except Exception:
+        pass  # an older Hermes without ctx.llm: chess still works against the engine
+    description = "Play Chrome's dino game or chess in this terminal. Esc returns."
+    try:
+        ctx.register_command("console", handle_console, description=description, args_hint="[dino|chess]")
     except TypeError:
         ctx.register_command("console", handle_console, description=description)
     for hook, fn in (
