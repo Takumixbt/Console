@@ -109,7 +109,6 @@ class _WinBackend:
             raise TerminalError("no console attached")
         self._old_in = wt.DWORD()
         self._old_out = wt.DWORD()
-        self._down: set[int] = set()
 
     def enter(self) -> None:
         k32 = self.k32
@@ -289,7 +288,6 @@ class Terminal:
         self.real_key_release = self.backend.real_key_release
         self.caps = Caps()
         self._synth: dict[str, float] = {}
-        self._entered = False
         self._cv = threading.Condition()
         self._queue: list[tuple[bytes, bool]] = []
         self._writer: threading.Thread | None = None
@@ -298,7 +296,6 @@ class Terminal:
 
     def __enter__(self) -> "Terminal":
         self.backend.enter()
-        self._entered = True
         self.write(ALT_ON)
         self.caps = self._probe()
         return self
@@ -310,8 +307,7 @@ class Terminal:
         finally:
             self.backend.leave()
             self.backend.close()
-            self._entered = False
-
+    
     def write(self, data: bytes) -> None:
         self.backend.write(data)
 

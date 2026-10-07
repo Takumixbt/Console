@@ -24,16 +24,15 @@ dev = ["pytest>=7.0", "pillow"]
 
 [project.scripts]
 console = "console.cli:main"
-console-dino = "console.games.dino.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/Takumixbt/Console"
 
 [tool.setuptools.packages.find]
-include = ["console", "console.*", "console_dino"]
+include = ["console", "console.*"]
 
 [tool.setuptools.package-data]
-"console.games.dino" = ["assets/*.png"]
+"console.games.dino" = ["assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
