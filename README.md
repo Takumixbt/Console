@@ -4,10 +4,6 @@ Chrome's dino game, inside your terminal, one keypress away from [Hermes Agent](
 
 ![Console dino](docs/console-dino.gif)
 
-It is not a lookalike. The game is a line-for-line Python port of the dino source in Chromium, drawn with Chrome's own sprite sheet and played with Chrome's own sounds. The physics, obstacle spawning, pterodactyls, night mode, score flashes, the game-over button animation and the high score all come from the original code, and the port is checked against a real Chrome 154 (see [How it is verified](#how-it-is-verified)).
-
-![Console running in Windows Terminal](docs/console-windows-terminal.png)
-
 ## Install
 
 You need Python 3.10+ and a terminal that can draw sixel graphics. **Windows Terminal 1.22 or newer** does; so do WezTerm, iTerm2 and foot. There are no Python dependencies.
