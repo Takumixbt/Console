@@ -2,20 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Callable, Type
+from typing import Callable
 
-from .games.base import Game
-
-GameFactory = Callable[[], Game]
-
-GAMES: dict[str, GameFactory] = {}
+GAMES: dict[str, Callable] = {}
 DEFAULT_GAME = "dino"
 
 
-def register(name: str) -> Callable[[Type[Game]], Type[Game]]:
+def register(name: str):
     """Class decorator that publishes a game under ``/console <name>``."""
 
-    def wrapper(cls: Type[Game]) -> Type[Game]:
+    def wrapper(cls):
         GAMES[name] = cls
         return cls
 

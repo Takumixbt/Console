@@ -1,4 +1,4 @@
-"""Chrome offline dinosaur — the default Console game."""
+"""Chrome's offline dinosaur, ported from the Chromium source."""
 
 from .game import DinoGame
 

@@ -1,45 +1,70 @@
-"""Shared game protocol for Console."""
+"""What every Console game provides.
+
+A game owns its own clock-driven logic and hands the terminal layer a finished
+picture each frame. The terminal layer never needs to know the rules, and a
+game never needs to know how pixels reach the screen.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Protocol
+from dataclasses import dataclass
+
+
+_GRAY = tuple((g, g, g) for g in range(256))
 
 
 @dataclass
-class GameFlags:
-    """Sidecar flags from Hermes / the state file. Never drive physics."""
+class Frame:
+    """An indexed-colour picture: ``pixels[y * width + x]`` indexes ``palette``.
 
-    task_done: bool = False
-    busy: bool = False
+    Palette indices should mean the same colour from frame to frame (the dino
+    uses the grey level itself); the sixel encoder caches finished bands.
+    """
 
+    width: int
+    height: int
+    pixels: bytes
+    palette: tuple  # ((r, g, b), ...), at most 256 entries
+    page: int = 255  # palette index of the "page" colour around the picture
 
-@dataclass
-class KeyEvent:
-    """Normalized input. ``pressed`` is False on inferred key-up."""
-
-    name: str
-    pressed: bool = True
-
-
-class Game(Protocol):
-    name: str
-
-    def reset(self) -> None: ...
-    def snapshot(self) -> dict[str, Any]: ...
-    def load_snapshot(self, data: dict[str, Any]) -> None: ...
-    def handle_key(self, event: KeyEvent) -> None: ...
-    def update(self, dt_ms: float, flags: GameFlags) -> None: ...
-    def render(self, cols: int, rows: int) -> list[str]: ...
-    def saw_task_done_banner(self) -> bool: ...
+    @classmethod
+    def from_gray(cls, width: int, height: int, gray: bytes, page_gray: int = 255) -> "Frame":
+        """A frame whose pixels are grey levels (index == level)."""
+        return cls(width, height, gray, _GRAY, page_gray)
 
 
-@dataclass
-class BaseGame:
-    """Optional helper with default snapshot plumbing."""
+class Game:
+    """Base class. Subclasses register themselves via ``console.catalog.register``."""
 
-    name: str = "game"
-    _saw_banner: bool = field(default=False, init=False)
+    name = "game"
+    title = "Game"
+    #: Native picture size in pixels; the terminal layer scales by whole numbers.
+    width = 600
+    height = 150
 
-    def saw_task_done_banner(self) -> bool:
-        return self._saw_banner
+    @classmethod
+    def create(cls) -> "Game":
+        """A fresh game wired to Console's saved state (high scores and the like)."""
+        return cls()
+
+    def handle_key(self, key: str, pressed: bool, now_ms: float) -> None:  # pragma: no cover - interface
+        """``key`` is one of: space up down left right enter, or a single character."""
+
+    def tick(self, now_ms: float) -> None:  # pragma: no cover - interface
+        """Advance the game to ``now_ms`` (a monotonic clock in milliseconds)."""
+
+    def frame(self, now_ms: float) -> Frame:  # pragma: no cover - interface
+        raise NotImplementedError
+
+    def hint(self) -> str:
+        """One line of help shown under the picture."""
+        return ""
+
+    def pause(self, now_ms: float) -> None:
+        """Console is being left. Chrome stops the game when its tab loses focus."""
+
+    def resume(self, now_ms: float) -> None:
+        """Console is back."""
+
+    def close(self) -> None:
+        """Persist anything worth keeping."""

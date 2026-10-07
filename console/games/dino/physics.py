@@ -1,52 +1,37 @@
-"""AABB collision and Chrome-style box adjustment."""
+"""Collision detection, ported from the bottom of Chromium's ``offline.ts``."""
 
 from __future__ import annotations
 
-from .constants import (
-    TREX_BOXES_DUCKING,
-    TREX_BOXES_RUNNING,
-    TREX_HEIGHT,
-    TREX_WIDTH,
-    CollisionBox,
-)
+from .constants import CollisionBox
 
 
-def boxes_overlap(a: CollisionBox, b: CollisionBox) -> bool:
-    return a.x < b.x + b.w and a.x + a.w > b.x and a.y < b.y + b.h and a.y + a.h > b.y
+def create_adjusted_collision_box(box: CollisionBox, adjustment: CollisionBox) -> CollisionBox:
+    return CollisionBox(box.x + adjustment.x, box.y + adjustment.y, box.width, box.height)
 
 
-def adjust(box: CollisionBox, origin: CollisionBox) -> CollisionBox:
-    """Chrome ``createAdjustedCollisionBox``."""
-    return CollisionBox(box.x + origin.x, box.y + origin.y, box.w, box.h)
+def box_compare(t_rex_box: CollisionBox, obstacle_box: CollisionBox) -> bool:
+    return (
+        t_rex_box.x < obstacle_box.x + obstacle_box.width
+        and t_rex_box.x + t_rex_box.width > obstacle_box.x
+        and t_rex_box.y < obstacle_box.y + obstacle_box.height
+        and t_rex_box.height + t_rex_box.y > obstacle_box.y
+    )
 
 
-def trex_outer(x: float, y: float) -> CollisionBox:
-    return CollisionBox(x + 1, y + 1, TREX_WIDTH - 2, TREX_HEIGHT - 2)
-
-
-def obstacle_outer(x: float, y: float, width: float, height: float) -> CollisionBox:
-    return CollisionBox(x + 1, y + 1, width - 2, height - 2)
-
-
-def crashed(
-    trex_x: float,
-    trex_y: float,
-    ducking: bool,
-    obst_x: float,
-    obst_y: float,
-    obst_w: float,
-    obst_h: float,
-    obst_boxes: tuple[CollisionBox, ...],
-) -> bool:
-    """Two-phase Chrome collision: outer AABB, then inner sprite boxes."""
-    t_outer = trex_outer(trex_x, trex_y)
-    o_outer = obstacle_outer(obst_x, obst_y, obst_w, obst_h)
-    if not boxes_overlap(t_outer, o_outer):
-        return False
-    inner = TREX_BOXES_DUCKING if ducking else TREX_BOXES_RUNNING
-    for tb in inner:
-        adj_t = adjust(tb, t_outer)
-        for ob in obst_boxes:
-            if boxes_overlap(adj_t, adjust(ob, o_outer)):
-                return True
-    return False
+def check_for_collision(obstacle, t_rex):
+    """Return the two crashed boxes, or ``None``. Mirrors Runner.checkForCollision."""
+    t_rex_box = CollisionBox(t_rex.x_pos + 1, t_rex.y_pos + 1, t_rex.config.width - 2, t_rex.config.height - 2)
+    obstacle_box = CollisionBox(
+        obstacle.x_pos + 1,
+        obstacle.y_pos + 1,
+        obstacle.type_config.width * obstacle.size - 2,
+        obstacle.type_config.height - 2,
+    )
+    if box_compare(t_rex_box, obstacle_box):
+        for t_rex_collision_box in t_rex.get_collision_boxes():
+            for obstacle_collision_box in obstacle.collision_boxes:
+                adj_t_rex_box = create_adjusted_collision_box(t_rex_collision_box, t_rex_box)
+                adj_obstacle_box = create_adjusted_collision_box(obstacle_collision_box, obstacle_box)
+                if box_compare(adj_t_rex_box, adj_obstacle_box):
+                    return [adj_t_rex_box, adj_obstacle_box]
+    return None
