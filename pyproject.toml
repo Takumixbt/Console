@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "console-dino"
-version = "1.0.0"
-description = "Console: a small multi-game terminal you open while Hermes is running. First game: Chrome dino."
+version = "2.0.0"
+description = "Console: play Chrome's dino game (a line-for-line port of the Chromium source) inside your terminal, and from Hermes Agent with /console."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Takumi" }]
-keywords = ["console", "dino", "hermes", "tui", "chrome-dino"]
+keywords = ["console", "dino", "hermes", "tui", "chrome-dino", "sixel"]
 classifiers = [
     "Environment :: Console",
     "License :: OSI Approved :: MIT License",
@@ -20,7 +20,7 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0"]
+dev = ["pytest>=7.0", "pillow"]
 
 [project.scripts]
 console = "console.cli:main"
@@ -31,6 +31,9 @@ Homepage = "https://github.com/Takumixbt/Console"
 
 [tool.setuptools.packages.find]
 include = ["console", "console.*", "console_dino"]
+
+[tool.setuptools.package-data]
+"console.games.dino" = ["assets/*.png"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

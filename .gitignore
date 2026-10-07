@@ -15,3 +15,5 @@ venv/
 htmlcov/
 *.state
 .DS_Store
+tools/out/
+trace*.json
