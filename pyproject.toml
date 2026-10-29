@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "console-chess"
 version = "2.1.0"
-description = "A terminal arcade for Claude Code, Codex, OpenCode and Hermes: play chess against the models available to your account, plus Stockfish, a built-in engine and Chrome's Dino."
+description = "Play chess against your AI coding agent in the terminal. Switch models as you play."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
