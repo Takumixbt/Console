@@ -66,14 +66,14 @@ def test_claude_reports_the_concrete_model_used_for_an_alias(monkeypatch):
     assert agent.label == "Claude Code (claude-opus-5-5)"
 
 
-def test_claude_catalog_prefers_exact_ids_to_family_aliases(monkeypatch):
+def test_claude_catalog_includes_current_aliases_and_known_exact_ids(monkeypatch):
     from console.games.chess import models
 
     monkeypatch.setattr(models, "_claude_aliases", lambda: ["opus", "sonnet", "fable"])
     monkeypatch.setattr(models, "_claude_ids", lambda: ["claude-opus-5-5", "claude-sonnet-5-5"])
 
     assert models.claude_models()[0].models == (
-        "fable", "claude-opus-5-5", "claude-sonnet-5-5"
+        "opus", "sonnet", "fable", "claude-opus-5-5", "claude-sonnet-5-5"
     )
 
 

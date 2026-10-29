@@ -145,14 +145,9 @@ def _claude_aliases() -> list[str]:
 def claude_models() -> list[Group]:
     aliases = _claude_aliases()
     ids = sorted(_squash(_claude_ids()), key=_version_key, reverse=True)
-    # If this account has used a concrete model in a family, show the exact id
-    # instead of a moving alias. Keep the alias as a fallback for new/current
-    # models that have not appeared in local Claude history yet.
-    unresolved_aliases = [
-        alias for alias in aliases
-        if not any(model.startswith(f"claude-{alias}-") for model in ids)
-    ]
-    models = _squash([*unresolved_aliases, *ids])
+    # Keep the CLI's family aliases so users can select the newest version
+    # their account allows; also expose exact IDs from this account's history.
+    models = _squash([*aliases, *ids])
     return [Group("", "Claude Code", models)] if models else []
 
 
