@@ -63,6 +63,27 @@ def test_installed_agents_are_offered_in_the_menu(monkeypatch):
     assert not any(key == "model" for key, _ in opponents.available())
 
 
+@pytest.mark.parametrize("host", ("claude", "codex", "opencode"))
+def test_a_host_only_sees_its_own_agent(monkeypatch, host):
+    monkeypatch.setattr(opponents, "HOST", host)
+    monkeypatch.setattr(opponents, "_LLM", FakeProc())
+    monkeypatch.setattr(opponents.engine, "find_stockfish", lambda: None)
+    monkeypatch.setattr(opponents.shutil, "which", lambda name: f"/usr/bin/{name}")
+
+    options = opponents.available()
+    assert [key for key, _label in options if key in opponents.AGENT_CLIS] == [host]
+    assert not any(key in ("model", "api") for key, _label in options)
+
+
+def test_hermes_only_sees_hermes_when_opened_from_hermes(monkeypatch):
+    monkeypatch.setattr(opponents, "HOST", "hermes")
+    monkeypatch.setattr(opponents, "_LLM", FakeProc())
+    monkeypatch.setattr(opponents.engine, "find_stockfish", lambda: None)
+    monkeypatch.setattr(opponents.shutil, "which", lambda _name: "/usr/bin/available")
+
+    assert opponents.available() == [("engine", "Built-in engine"), ("model", "Hermes model")]
+
+
 def test_ansi_and_chatter_are_ignored_when_parsing():
     move = opponents._extract(Board(), "\x1b[1mThe move is: **Nf3**\x1b[0m")
     assert move is not None and Board().san(move) == "Nf3"

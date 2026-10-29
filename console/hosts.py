@@ -515,6 +515,31 @@ def _plugin_state() -> tuple[str, str]:
     return "warn", "plugin not installed - run `hermes plugins install Takumixbt/Console --enable`"
 
 
+def _command_status(host: str, home: Path | None = None) -> tuple[str, str]:
+    """Check that every installed command file matches this version's host-scoped template."""
+    files = targets(host, home=home)
+    present = 0
+    current = 0
+    first = ""
+    for target in files:
+        if not first:
+            first = str(target.path)
+        try:
+            text = target.path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        present += 1
+        if text == target.text:
+            current += 1
+    if files and current == len(files):
+        return "ok", f"installed and current ({first})"
+    if not present:
+        return "missing", f"not installed - run `console install {host}`"
+    if present < len(files):
+        return "warn", f"partly installed ({present}/{len(files)}) - run `console install {host}`"
+    return "warn", f"out of date ({current}/{len(files)} current) - run `console install {host}`"
+
+
 def doctor(refresh: bool = False) -> list[Report]:
     """Check each host: is the CLI there, is it signed in, what models can it play, are we installed."""
     from .games.chess import models as catalogs
@@ -552,17 +577,16 @@ def doctor(refresh: bool = False) -> list[Report]:
             state, text = _plugin_state()
             checks.append(("plugin", text))
         else:
-            files = targets(host)
-            present = [t.path for t in files if t.path.is_file()]
-            if len(present) == len(files) and present:
-                checks.append(("command", f"installed ({present[0]})"))
+            command_state, command_text = _command_status(host)
+            if command_state == "ok":
+                checks.append(("command", command_text))
                 state = "ok"
-            elif present:
+            elif command_state == "warn":
                 state = "warn"
-                checks.append(("command", f"partly installed ({len(present)}/{len(files)}) - run `console install {host}`"))
+                checks.append(("command", command_text))
             else:
                 state = "warn"
-                checks.append(("command", f"not installed - run `console install {host}`"))
+                checks.append(("command", command_text))
         if auth.lower().startswith("not logged in") or (host != "hermes" and total == 0):
             state = "warn"
         reports.append(Report(host, state, version, tuple(checks)))

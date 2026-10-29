@@ -18,7 +18,7 @@ def test_install_writes_the_claude_commands_and_is_idempotent(tmp_path):
     assert not errors
     path = tmp_path / ".claude" / "commands" / "console.md"
     assert path.exists() and hosts.MARKER in path.read_text(encoding="utf-8")
-    assert "console open chess" in path.read_text(encoding="utf-8")
+    assert "console open chess --host claude" in path.read_text(encoding="utf-8")
     assert (tmp_path / ".claude" / "commands" / "console-dino.md").exists()
 
     done, errors = hosts.install("claude", home=tmp_path)
@@ -48,12 +48,27 @@ def test_codex_home_and_opencode_xdg_are_respected(tmp_path, monkeypatch):
     codex_home = tmp_path / "elsewhere"
     monkeypatch.setenv("CODEX_HOME", str(codex_home))
     hosts.install("codex", home=tmp_path)
-    assert (codex_home / "prompts" / "console.md").exists()
+    codex_command = codex_home / "prompts" / "console.md"
+    assert codex_command.exists()
+    assert "console open chess --host codex" in codex_command.read_text(encoding="utf-8")
 
     xdg = tmp_path / "xdg"
     monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg))
     hosts.install("opencode", home=tmp_path)
-    assert (xdg / "opencode" / "commands" / "console.md").exists()
+    opencode_command = xdg / "opencode" / "commands" / "console.md"
+    assert opencode_command.exists()
+    assert "console open chess --host opencode" in opencode_command.read_text(encoding="utf-8")
+
+
+def test_doctor_marks_old_host_commands_out_of_date(tmp_path):
+    hosts.install("opencode", home=tmp_path)
+    command = hosts.targets("opencode", home=tmp_path)[0]
+    command.path.write_text(command.text.replace("--host opencode", ""), encoding="utf-8")
+
+    state, detail = hosts._command_status("opencode", home=tmp_path)
+    assert state == "warn"
+    assert "out of date" in detail
+    assert "console install opencode" in detail
 
 
 def test_project_install_stays_in_the_repository(tmp_path, monkeypatch):

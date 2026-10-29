@@ -31,7 +31,7 @@ console install opencode   # ~/.config/opencode/commands/...
 console install all        # all three
 ```
 
-The installer is idempotent, tells you every path it writes, and refuses to overwrite a file it did not create (use `--force`). Add `--project` to put the command in this repository instead of your user config (Claude Code and OpenCode; Codex prompts are always user-level). Use `console install --list` to see the paths.
+The installer is idempotent, tells you every path it writes, and refuses to overwrite a file it did not create (use `--force`). Add `--project` to put the command in this repository instead of your user config (Claude Code and OpenCode; Codex prompts are always user-level). Use `console install --list` to see the paths. After upgrading Console, run `console install all` again to refresh older command files; each command pins chess to its host, so OpenCode shows OpenCode models, Codex shows Codex models, and so on.
 
 | Host | Type | What it does |
 | --- | --- | --- |
