@@ -114,6 +114,21 @@ def test_no_terminal_means_a_printable_fallback(monkeypatch):
     assert "another terminal" in hosts.open_message("chess")
 
 
+def test_hermes_status_is_summarized_without_returning_the_table():
+    raw = """
+    Model:      grok-4.5
+    Provider:   xAI Grok OAuth (Premium+)
+    Auth Providers
+      xAI OAuth  ✗ not logged in
+        Error: Invalid refresh token
+    API-Key Providers
+    """
+    auth, model = hosts._hermes_status(raw)
+    assert auth == "not logged in (provider credentials need refreshing)"
+    assert model == "grok-4.5 via xAI Grok OAuth (Premium+); available models load from the active Hermes plugin"
+    assert "Invalid refresh token" not in auth
+
+
 def test_wt_action_splits_then_zooms_the_game_pane():
     action = hosts.wt_action("chess", "ctrl+o")
     assert action["keys"] == "ctrl+o"

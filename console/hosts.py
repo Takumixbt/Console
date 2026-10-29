@@ -10,8 +10,9 @@ binds one key in Windows Terminal that splits and zooms the game over the agent.
 
 from __future__ import annotations
 
-import os
 import json
+import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -454,9 +455,51 @@ def _auth(host: str) -> str:
         rows = [line for line in raw.splitlines() if line.strip() and "default" not in line.lower()]
         return f"{len(rows)} credential(s) stored" if rows else "no credentials found - run `opencode auth login`"
     if host == "hermes":
-        raw = _probe("hermes", ["status"])
-        return _one_line(raw) or "unknown"
+        raw = _probe("hermes", ["status", "--all"], timeout=45)
+        return _hermes_status(raw)[0]
     return "unknown"
+
+
+def _hermes_status(raw: str) -> tuple[str, str]:
+    """Summarize Hermes' redacted status without returning its table or secrets."""
+    values: dict[str, str] = {}
+    for line in (raw or "").splitlines():
+        match = re.match(r"^\s*(Model|Provider):\s*(.*?)\s*$", line, re.I)
+        if match:
+            values[match.group(1).lower()] = match.group(2)
+
+    provider = values.get("provider", "")
+    model = values.get("model", "")
+    aliases = {
+        "xai": ("xAI OAuth", "Grok"),
+        "openai codex": ("OpenAI Codex",),
+        "nous": ("Nous Portal",),
+        "anthropic": ("Anthropic",),
+        "qwen": ("Qwen OAuth",),
+        "minimax": ("MiniMax OAuth", "MiniMax"),
+    }
+    section = raw.split("Auth Providers", 1)[-1].split("API-Key Providers", 1)[0]
+    candidates = next(
+        (names for prefix, names in aliases.items() if prefix in provider.lower()),
+        (),
+    )
+    auth = "unknown"
+    for line in section.splitlines():
+        if any(name.lower() in line.lower() for name in candidates):
+            lower = line.lower()
+            if "not logged in" in lower or "invalid refresh token" in lower or "invalid_grant" in lower:
+                auth = "not logged in (provider credentials need refreshing)"
+            elif "logged in" in lower:
+                auth = "logged in"
+            break
+    if auth == "unknown" and provider:
+        auth = "managed by Hermes; run `hermes status` for auth details"
+
+    current = f"{model} via {provider}" if model and provider else model or provider
+    model_check = f"{current}; available models load from the active Hermes plugin" if current else (
+        "available models load from the active Hermes plugin"
+    )
+    return auth, model_check
 
 
 def _plugin_state() -> tuple[str, str]:
@@ -487,20 +530,24 @@ def doctor(refresh: bool = False) -> list[Report]:
         if not path:
             reports.append(Report(host, "missing", "", tuple(checks)))
             continue
-        auth = _auth(host)
-        checks.append(("auth", auth))
-        kind = "model" if host == "hermes" else host
-        groups = catalogs.for_opponent(kind, refresh=refresh)
-        total = sum(len(group.models) for group in groups)
+        hermes_model_check = ""
         if host == "hermes":
-            total = sum(len(group.models) for group in groups if not group.default)
-        sample = [model for group in groups for model in group.models][:3]
-        checks.append(
-            (
-                "models",
-                f"{total}" + (f" ({', '.join(sample)}{', ...' if total > len(sample) else ''})" if sample else ""),
+            auth, hermes_model_check = _hermes_status(_probe("hermes", ["status", "--all"], timeout=45))
+        else:
+            auth = _auth(host)
+        checks.append(("auth", auth))
+        if host == "hermes":
+            checks.append(("models", hermes_model_check))
+        else:
+            groups = catalogs.for_opponent(host, refresh=refresh)
+            total = sum(len(group.models) for group in groups)
+            sample = [model for group in groups for model in group.models][:3]
+            checks.append(
+                (
+                    "models",
+                    f"{total}" + (f" ({', '.join(sample)}{', ...' if total > len(sample) else ''})" if sample else ""),
+                )
             )
-        )
         if host == "hermes":
             state, text = _plugin_state()
             checks.append(("plugin", text))
@@ -516,7 +563,7 @@ def doctor(refresh: bool = False) -> list[Report]:
             else:
                 state = "warn"
                 checks.append(("command", f"not installed - run `console install {host}`"))
-        if auth.startswith("NOT") or total == 0:
+        if auth.lower().startswith("not logged in") or (host != "hermes" and total == 0):
             state = "warn"
         reports.append(Report(host, state, version, tuple(checks)))
 
