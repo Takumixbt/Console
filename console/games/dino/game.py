@@ -107,7 +107,7 @@ class DinoGame(Game):
         self.runner.on_visibility_change(False)
 
     def hint(self) -> str:
-        return "Space / Up jump    Down duck    Esc back to Hermes"
+        return "Space / Up jump    Down duck    Esc leave"
 
     # -- picture ------------------------------------------------------------
 

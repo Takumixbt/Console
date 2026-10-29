@@ -1,20 +1,25 @@
-"""What Console remembers: high scores on disk, Hermes' activity in memory.
+"""What Console remembers: high scores on disk, the agent's activity in memory.
 
-High scores live in ``console.json`` inside the Hermes home directory (or, when
-run standalone, the same place it would be if Hermes were installed). The
-Hermes activity flag is just a process-wide object: the plugin's hooks and the
-game run in the same process, so no state file is needed to connect them.
+High scores live in ``console.json``. If Hermes is installed, that is Hermes'
+home directory, so the plugin and a standalone game share one score file;
+otherwise it is Console's own config directory. ``CONSOLE_HOME`` overrides both.
+The activity flag is just a process-wide object: the plugin hooks and the game
+run in the same process, so no state file is needed to connect them.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import sys
 import threading
 from pathlib import Path
 
 
 def home_dir() -> Path:
+    env = os.environ.get("CONSOLE_HOME")
+    if env:
+        return Path(env)
     env = os.environ.get("HERMES_HOME")
     if env:
         return Path(env)
@@ -26,7 +31,13 @@ def home_dir() -> Path:
     for c in candidates:
         if c.is_dir():
             return c
-    return candidates[-1]
+    # Standalone: a normal per-user config directory rather than a Hermes one.
+    if sys.platform == "win32":
+        base = os.environ.get("APPDATA") or os.environ.get("LOCALAPPDATA")
+        if base:
+            return Path(base) / "console"
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    return (Path(xdg) if xdg else Path.home() / ".config") / "console"
 
 
 def state_path() -> Path:
@@ -64,10 +75,11 @@ def save_high_score(game: str, score: int) -> None:
         pass  # a missing high score is not worth interrupting a game
 
 
-class HermesActivity:
+class AgentActivity:
     """Is the agent working? Written by the plugin hooks, read by the game screen."""
 
-    def __init__(self) -> None:
+    def __init__(self, host: str = "Agent") -> None:
+        self.host = host
         self._lock = threading.Lock()
         self.busy = False
         self.finished = False  # a run completed since the last time the player looked
@@ -91,4 +103,7 @@ class HermesActivity:
             return self.busy, self.finished
 
 
-ACTIVITY = HermesActivity()
+# Kept for the tests and for anyone importing the old name.
+HermesActivity = AgentActivity
+
+ACTIVITY = AgentActivity()

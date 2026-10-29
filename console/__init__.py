@@ -1,3 +1,3 @@
-"""Console: play Chrome's dino game (and more) inside your terminal while Hermes works."""
+"""Console: play chess in your terminal, against a coding agent or an engine. Chrome's dino is included."""
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"

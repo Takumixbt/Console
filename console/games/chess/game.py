@@ -1,4 +1,4 @@
-"""Chess in Console: you against the built-in engine, Stockfish, or a Hermes model."""
+"""Chess in Console: you against the built-in engine, Stockfish, a coding agent or an API model."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import threading
 
 from ...catalog import register
 from ..base import Frame, Game
-from . import opponents
+from . import models, opponents
 from .engine import LEVELS
 from .pieces import SIZE, outline, silhouette
 from .rules import BLACK, KING, PAWN, WHITE, Board, mk, move_from, move_promo, move_to, sq_name, QUEEN, ROOK, BISHOP, KNIGHT
@@ -104,17 +104,29 @@ class ChessGame(Game):
     width = SIDE
     height = SIDE
     HINT_LINES = 4
-    MENU_LINES = 5  # the model opponent has one more row (provider and model)
+    MENU_LINES = 6  # opponent, strength, provider, model, side, plus the key hint
 
     def __init__(self) -> None:
         self.board = Board()
         self.mode = "menu"
         self.opp_options = opponents.available()
         self.opp_index = 0
+        host = opponents.get_host()
+        if host:
+            # Opened from an agent: start on that agent, so its model list is right there.
+            wanted = "model" if host == "hermes" else host
+            for index, (key, _label) in enumerate(self.opp_options):
+                if key == wanted:
+                    self.opp_index = index
+                    break
         self.level = 1
         self.side = 0  # 0 white, 1 black, 2 random
-        self.catalog: opponents.Catalog | None = None  # the models Hermes has; loaded in the background
-        self.prov_index = 0  # 0 = whatever Hermes is running, then one entry per provider
+        # The host's own model list; loaded in the background because two of the
+        # CLIs take seconds to answer.
+        self.groups: list[models.Group] = []
+        self.groups_ready = False
+        self._groups_for: str | None = None
+        self.group_index = 0
         self.model_index = 0
         self.menu_row = 0
         self.menu_error = ""
@@ -136,25 +148,58 @@ class ChessGame(Game):
         self._frame: Frame | None = None
         self._dirty = True
         self._now = 0.0
-        if opponents.llm_available():
-            threading.Thread(target=self._load_catalog, name="chess-models", daemon=True).start()
+        self._ensure_groups()
 
-    def _load_catalog(self) -> None:
-        self.catalog = opponents.load_catalog()
+    def _kind(self) -> str:
+        return self.opp_options[self.opp_index % len(self.opp_options)][0]
+
+    def _current_group(self) -> models.Group | None:
+        if not self.groups:
+            return None
+        return self.groups[self.group_index % len(self.groups)]
+
+    def _has_models(self) -> bool:
+        return any(group.models for group in self.groups)
+
+    def _ensure_groups(self, force: bool = False) -> None:
+        """Start loading the selected opponent's own model list, once per selection."""
+        kind = self._kind()
+        if kind not in models.MODEL_KINDS:
+            self.groups, self.groups_ready, self._groups_for = [], True, kind
+            self.group_index = self.model_index = 0
+            return
+        if self._groups_for == kind and not force:
+            return
+        self._groups_for = kind
+        self.groups, self.groups_ready = [], False
+        self.group_index = self.model_index = 0
+        threading.Thread(target=self._load_groups, args=(kind,), name="chess-models", daemon=True).start()
+
+    def _load_groups(self, kind: str) -> None:
+        try:
+            groups = models.for_opponent(kind)
+        except Exception:
+            groups = []
+        if self._groups_for != kind:
+            return  # the player moved to another opponent while we were asking
+        self.groups = groups
+        self.groups_ready = True
         self._dirty = True
 
     # -- menu --------------------------------------------------------------------------
 
     def _menu_rows(self) -> list[str]:
-        """Which rows the menu shows: the model opponent swaps Strength for Provider and Model."""
-        if self.opp_options[self.opp_index % len(self.opp_options)][0] == "model":
-            return ["opponent", "provider", "model", "side"]
-        return ["opponent", "strength", "side"]
-
-    def _models(self) -> list[str]:
-        if self.catalog is None or self.prov_index == 0:
-            return []
-        return self.catalog.providers[self.prov_index - 1][2]
+        """Which rows the menu shows: strengths for an engine, the host's models for an agent."""
+        kind = self._kind()
+        rows = ["opponent"]
+        if kind in ("engine", "stockfish"):
+            rows.append("strength")
+        if len(self.groups) > 1:
+            rows.append("provider")
+        if kind in models.MODEL_KINDS or self._has_models():
+            rows.append("model")
+        rows.append("side")
+        return rows
 
     def _menu_keys(self, key: str) -> None:
         self.opp_options = opponents.available()
@@ -171,28 +216,33 @@ class ChessGame(Game):
             row = rows[self.menu_row]
             if row == "opponent":
                 self.opp_index = (self.opp_index + d) % len(self.opp_options)
+                self._ensure_groups()
                 self.menu_row = min(self.menu_row, len(self._menu_rows()) - 1)
             elif row == "strength":
                 self.level = (self.level + d) % len(LEVELS)
-            elif row == "provider" and self.catalog is not None:
-                self.prov_index = (self.prov_index + d) % (len(self.catalog.providers) + 1)
+            elif row == "provider" and self.groups:
+                self.group_index = (self.group_index + d) % len(self.groups)
                 self.model_index = 0
-            elif row == "model" and self._models():
-                self.model_index = (self.model_index + step) % len(self._models())
+            elif row == "model":
+                group = self._current_group()
+                if group is not None and group.models:
+                    self.model_index = (self.model_index + step) % len(group.models)
             elif row == "side":
                 self.side = (self.side + d) % 3
         elif key in ("enter", "space"):
             self._start()
 
     def _start(self) -> None:
-        kind = self.opp_options[self.opp_index][0]
+        kind = self._kind()
         try:
             if self.opponent:
                 self.opponent.close()
             provider, model = "", ""
-            if kind == "model" and self.prov_index > 0 and self.catalog is not None:
-                provider = self.catalog.providers[self.prov_index - 1][0]
-                model = self._models()[self.model_index]
+            group = self._current_group()
+            if group is not None:
+                provider = "" if group.default else group.slug
+                if group.models:
+                    model = group.models[self.model_index % len(group.models)]
             self.opponent = opponents.make(kind, self.level, provider, model)
         except Exception as exc:
             self.menu_error = str(exc)
@@ -407,13 +457,13 @@ class ChessGame(Game):
 
     def hint(self) -> str:
         lines = self._lines()
-        n = self.MENU_LINES if self.mode == "menu" and opponents.llm_available() else self.HINT_LINES
+        n = self.MENU_LINES if self.mode == "menu" else self.HINT_LINES
         lines += [""] * (n - len(lines))
         return "\n".join(lines[:n])
 
     def _lines(self) -> list[str]:
         if self.mode == "menu":
-            kind = self.opp_options[self.opp_index % len(self.opp_options)][0]
+            kind = self._kind()
             texts = {
                 "opponent": f"Opponent: {self.opp_options[self.opp_index % len(self.opp_options)][1]}",
                 "strength": f"Strength: {LEVELS[self.level].name}",
@@ -423,12 +473,15 @@ class ChessGame(Game):
             }
             rows = self._menu_rows()
             shown = [("> " if i == self.menu_row else "  ") + texts[r] for i, r in enumerate(rows)]
-            tail = self.menu_error or ("Up/Down row   Left/Right change   , . jump 10   Enter starts   Esc back" if kind == "model" else "Up/Down choose   Left/Right change   Enter starts   Esc back to Hermes")
-            return shown + [tail]
+            if self._has_models():
+                tail = "Up/Down row   Left/Right change   , . jump 10   Enter starts   Esc leave"
+            else:
+                tail = "Up/Down row   Left/Right change   Enter starts   Esc leave"
+            return shown + [self.menu_error or tail]
         if self.mode == "promote":
             return ["Promote to:  Q queen   R rook   B bishop   N knight", "Backspace cancels"]
         if self.mode == "over":
-            return [self.result, f"Moves: {self._last_san()}", "Enter new game   U take back   Esc back to Hermes"]
+            return [self.result, f"Moves: {self._last_san()}", "Enter new game   U take back   Esc leave"]
         label = self.opponent.label if self.opponent else "Opponent"
         if self.thinking:
             dots = "." * (1 + int(self._now / 400) % 3)
@@ -443,21 +496,28 @@ class ChessGame(Game):
         return lines
 
     def _provider_text(self) -> str:
-        if self.catalog is None:
+        if not self.groups_ready:
             return "loading..."
-        if self.prov_index == 0:
-            return "Hermes default"
-        slug, name, models = self.catalog.providers[self.prov_index - 1]
-        return f"{name} ({len(models)} models)"
+        group = self._current_group()
+        if group is None:
+            return "this host has no model list"
+        if group.default:
+            return group.name
+        return f"{group.name} ({len(group.models)} models)"
 
     def _model_text(self) -> str:
-        if self.catalog is None:
+        group = self._current_group()
+        if not self.groups_ready:
             return "loading..."
-        models = self._models()
-        if not models:
-            current = self.catalog.current[1]
-            return f"the one Hermes is running ({current})" if current else "the one Hermes is running"
-        return f"{models[self.model_index]}   {self.model_index + 1}/{len(models)}"
+        if group is None or not group.models:
+            if self._kind() == "model":
+                current = opponents.load_catalog().current[1]
+                return f"the one Hermes is running ({current})" if current else "the one Hermes is running"
+            return "whatever this host is set to"
+        model = group.models[self.model_index % len(group.models)]
+        prefix = f"{group.slug}/" if group.slug else ""
+        shown = model[len(prefix) :] if prefix and model.startswith(prefix) else model
+        return f"{shown}   {self.model_index % len(group.models) + 1}/{len(group.models)}"
 
     def _last_san(self) -> str:
         return " ".join(self.history[-6:])

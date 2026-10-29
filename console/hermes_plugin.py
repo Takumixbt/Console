@@ -1,6 +1,7 @@
 """Hermes Agent plugin: ``/console`` and an any-time hotkey.
 
-``/console [game]`` opens a game inside the terminal Hermes is running in.
+``/console [game]`` opens chess (or the dino) inside the terminal Hermes is
+running in. Hermes is the one host that can hand the terminal over in place:
 Hermes runs plugin slash commands on a worker thread while prompt_toolkit owns
 the screen and the keyboard on the main thread, so the game is started through
 prompt_toolkit's own ``run_in_terminal``: it pauses Hermes' UI, hands over the
@@ -176,11 +177,13 @@ def register(ctx) -> None:
         from .games.chess import opponents
 
         opponents.set_llm(ctx.llm)  # lets chess ask the model Hermes is running
+        opponents.set_host("hermes")  # and lists only Hermes' own providers
     except Exception:
         pass  # an older Hermes without ctx.llm: chess still works against the engine
-    description = "Play Chrome's dino game or chess in this terminal. Esc returns."
+    ACTIVITY.host = "Hermes"
+    description = "Play chess (or Chrome's dino) in this terminal. Esc returns."
     try:
-        ctx.register_command("console", handle_console, description=description, args_hint="[dino|chess]")
+        ctx.register_command("console", handle_console, description=description, args_hint="[chess|dino]")
     except TypeError:
         ctx.register_command("console", handle_console, description=description)
     for hook, fn in (

@@ -1,8 +1,8 @@
 # Console: Hermes plugin manifest
 # Product name: Console (capital C); plugin key / enable slug: console (lowercase)
 name: console
-version: 2.0.0
-description: "Console: play Chrome's dino game or chess (against a Hermes model or the computer) inside your terminal while Hermes works. /console, or Ctrl+O any time."
+version: 2.1.0
+description: "Console: play chess inside your terminal against the model Hermes is running, the computer, or an installed agent CLI. Chrome's dino is included. /console, or Ctrl+O any time."
 author: Takumi
 kind: standalone
 provides_hooks:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Callable
 
 GAMES: dict[str, Callable] = {}
-DEFAULT_GAME = "dino"
+DEFAULT_GAME = "chess"
 
 
 def register(name: str):

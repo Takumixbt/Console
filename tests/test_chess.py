@@ -141,7 +141,7 @@ def test_undo_takes_back_both_plies(game):
 
 
 def test_hint_has_a_fixed_number_of_lines(game):
-    assert game.hint().count("\n") == ChessGame.HINT_LINES - 1
+    assert game.hint().count("\n") == ChessGame.MENU_LINES - 1
     key(game, "enter")
     assert game.hint().count("\n") == ChessGame.HINT_LINES - 1
 
@@ -212,17 +212,25 @@ def test_model_opponent_needs_hermes(monkeypatch):
 
 @pytest.fixture
 def model_game(monkeypatch):
+    from console.games.chess import models
+
     llm = FakeLlm("e4", "e5", "Nf3")
     monkeypatch.setattr(opponents, "_LLM", llm)
-    monkeypatch.setattr(opponents, "load_catalog", lambda refresh=False: opponents.Catalog(
-        [("anthropic", "Anthropic", ["claude-a", "claude-b", "claude-c"]), ("xai", "xAI", ["grok-1"])], ("xai", "grok-1")))
+    monkeypatch.setattr(opponents, "HOST", None)
+    groups = [
+        models.Group("", "Hermes default", (), default=True),
+        models.Group("anthropic", "Anthropic", ("claude-a", "claude-b", "claude-c")),
+        models.Group("xai", "xAI", ("grok-1",)),
+    ]
+    monkeypatch.setattr(models, "for_opponent", lambda kind: groups if kind == "model" else [])
     g = ChessGame()
     g.level = 0
+    g.opp_index = [k for k, _ in g.opp_options].index("model")
+    g._ensure_groups()
     for _ in range(100):
-        if g.catalog is not None:
+        if g.groups_ready:
             break
         time.sleep(0.02)
-    g.opp_index = [k for k, _ in g.opp_options].index("model")
     return g, llm
 
 
@@ -258,4 +266,4 @@ def test_changing_provider_resets_the_model_and_comma_jumps(model_game):
     key(g, "right")
     assert g.model_index == 0 and "xAI" in g._provider_text()
     key(g, "right")  # wraps back to "Hermes default"
-    assert g.prov_index == 0
+    assert g.group_index == 0

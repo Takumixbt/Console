@@ -3,14 +3,14 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "console-dino"
-version = "2.0.0"
-description = "Console: play Chrome's dino game (a line-for-line port of the Chromium source) inside your terminal, and from Hermes Agent with /console."
+name = "console-chess"
+version = "2.1.0"
+description = "Play chess in your terminal against Claude Code, Codex, OpenCode, Hermes, Stockfish or a built-in engine. Chrome's dino is included."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Takumi" }]
-keywords = ["console", "dino", "hermes", "tui", "chrome-dino", "sixel"]
+keywords = ["chess", "terminal", "tui", "sixel", "claude-code", "codex", "opencode", "hermes", "stockfish", "chrome-dino"]
 classifiers = [
     "Environment :: Console",
     "License :: OSI Approved :: MIT License",

@@ -74,10 +74,11 @@ def _page_style(rgb: tuple) -> bytes:
 
 def _status_text(game: Game) -> tuple[str, str]:
     busy, finished = ACTIVITY.snapshot()
+    host = ACTIVITY.host or "Agent"
     if finished:
-        status = "Hermes finished. Press Esc to go back."
+        status = f"{host} finished. Press Esc to go back."
     elif busy:
-        status = "Hermes is working..."
+        status = f"{host} is working..."
     else:
         status = ""
     return game.hint(), status
@@ -102,7 +103,7 @@ def _unsupported(term: Terminal) -> str:
     term.write(b"\x1b[2J\x1b[H")
     term.write(
         (
-            "Console draws Chrome's dino with sixel graphics, and this terminal did not say it supports them.\r\n"
+            "Console draws with sixel graphics, and this terminal did not say it supports them.\r\n"
             "Use Windows Terminal 1.22+, WezTerm, iTerm2 or foot (or set CONSOLE_SIXEL=1 to force it).\r\n"
             "\r\nPress any key to go back.\r\n"
         ).encode()
@@ -194,7 +195,7 @@ def _play(game: Game, term: Terminal) -> str:
                 if text != last_text:
                     last_text = text
                     cols, rows = size
-                    bell = b"\x07" if status.startswith("Hermes finished") else b""
+                    bell = b"\x07" if status.startswith(f"{ACTIVITY.host or 'Agent'} finished") else b""
                     lines = hint.split("\n")
                     for i, line in enumerate(lines):
                         out.append(_cup(rows - len(lines) + i, 1) + b"\x1b[2K" + line.center(cols)[:cols].encode())
