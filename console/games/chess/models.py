@@ -145,8 +145,14 @@ def _claude_aliases() -> list[str]:
 def claude_models() -> list[Group]:
     aliases = _claude_aliases()
     ids = sorted(_squash(_claude_ids()), key=_version_key, reverse=True)
-    # Aliases are shortcuts to the newest model, so they belong at the top.
-    models = _squash([*aliases, *ids])
+    # If this account has used a concrete model in a family, show the exact id
+    # instead of a moving alias. Keep the alias as a fallback for new/current
+    # models that have not appeared in local Claude history yet.
+    unresolved_aliases = [
+        alias for alias in aliases
+        if not any(model.startswith(f"claude-{alias}-") for model in ids)
+    ]
+    models = _squash([*unresolved_aliases, *ids])
     return [Group("", "Claude Code", models)] if models else []
 
 
@@ -320,6 +326,12 @@ def for_opponent(kind: str, refresh: bool = False) -> list[Group]:
             with _LOCK:
                 _MEMORY[kind] = cached
             return cached
+    if kind == "model" and refresh:
+        # Hermes keeps its own in-memory view of the account's provider picker.
+        # Refresh that too when the caller explicitly asks for a live catalog.
+        from . import opponents
+
+        opponents.load_catalog(refresh=True)
     try:
         groups = builder()
     except Exception:

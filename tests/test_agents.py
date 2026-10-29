@@ -17,6 +17,7 @@ def test_a_cli_opponent_builds_the_non_interactive_command(monkeypatch):
     opp = opponents.CliOpponent("claude")
     argv = opp.argv("Best move?")
     assert argv[1:4] == ["-p", "Best move?", "--output-format"]
+    assert argv[4] == "json"
     assert opp.label == "Claude Code"
 
 
@@ -44,6 +45,55 @@ def test_an_agent_reply_becomes_a_move(monkeypatch):
     assert Board().san(move) == "Nf3" and note == ""
     assert "\n" not in seen["argv"][-1], "cmd.exe shims split arguments at newlines"
     assert seen["cwd"] == "/tmp/console"
+
+
+def test_claude_reports_the_concrete_model_used_for_an_alias(monkeypatch):
+    monkeypatch.setattr(opponents.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(opponents, "_neutral_cwd", lambda: "/tmp/console")
+    monkeypatch.setattr(
+        opponents.subprocess,
+        "run",
+        lambda *a, **k: FakeProc(
+            stdout=(
+                '{"result":"Nf3","modelUsage":{"claude-opus-5-5":'
+                '{"canonicalModel":"claude-opus-5-5"}}}'
+            )
+        ),
+    )
+    agent = opponents.CliOpponent("claude", model="opus")
+
+    assert agent._ask([{"role": "user", "content": "move"}]) == "Nf3"
+    assert agent.label == "Claude Code (claude-opus-5-5)"
+
+
+def test_claude_catalog_prefers_exact_ids_to_family_aliases(monkeypatch):
+    from console.games.chess import models
+
+    monkeypatch.setattr(models, "_claude_aliases", lambda: ["opus", "sonnet", "fable"])
+    monkeypatch.setattr(models, "_claude_ids", lambda: ["claude-opus-5-5", "claude-sonnet-5-5"])
+
+    assert models.claude_models()[0].models == (
+        "fable", "claude-opus-5-5", "claude-sonnet-5-5"
+    )
+
+
+def test_refresh_uses_the_current_host_catalog(monkeypatch):
+    from console.games.chess import models
+
+    calls = []
+    monkeypatch.setattr(models, "_MEMORY", {})
+    monkeypatch.setattr(models, "_from_cache", lambda _kind: None)
+    monkeypatch.setitem(
+        models.BUILDERS,
+        "codex",
+        lambda: (calls.append("loaded") or [models.Group("", "Codex", ("account-model",))]),
+    )
+
+    models.for_opponent("codex")
+    fresh = models.for_opponent("codex", refresh=True)
+
+    assert calls == ["loaded", "loaded"]
+    assert fresh[0].models == ("account-model",)
 
 
 def test_a_failed_agent_falls_back_to_the_engine(monkeypatch):
@@ -110,7 +160,7 @@ def test_the_menu_hides_strength_for_agent_opponents(monkeypatch):
 
     monkeypatch.setattr(opponents, "_LLM", None)
     monkeypatch.setattr(opponents, "HOST", None)
-    monkeypatch.setattr("console.games.chess.models.for_opponent", lambda _kind: [])
+    monkeypatch.setattr("console.games.chess.models.for_opponent", lambda _kind, refresh=False: [])
     monkeypatch.setattr(
         opponents, "available", lambda: [("engine", "Built-in engine"), ("claude", "Claude Code")]
     )

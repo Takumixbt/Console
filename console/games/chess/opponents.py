@@ -331,7 +331,7 @@ class CliOpponent(_RemoteOpponent):
     def argv(self, prompt: str, last_message: str | None = None) -> list[str]:
         """The command line for one question. Kept separate so it can be tested without running it."""
         if self.cli.key == "claude":
-            argv = [self.path, "-p", prompt, "--output-format", "text"]
+            argv = [self.path, "-p", prompt, "--output-format", "json"]
             if self.model:
                 argv += ["--model", self.model]
         elif self.cli.key == "codex":
@@ -385,7 +385,23 @@ class CliOpponent(_RemoteOpponent):
                         return answer
                 except OSError:
                     pass
-            return proc.stdout or ""
+            output = proc.stdout or ""
+            if self.cli.key == "claude":
+                # Claude family aliases can resolve differently by account,
+                # plan, and CLI version. Report the model Claude actually ran.
+                try:
+                    result = json.loads(output)
+                except ValueError:
+                    return output
+                if isinstance(result, dict):
+                    usage = result.get("modelUsage")
+                    if isinstance(usage, dict) and usage:
+                        actual = next(iter(usage))
+                        details = usage.get(actual)
+                        canonical = details.get("canonicalModel") if isinstance(details, dict) else None
+                        self.label = f"{self.cli.label} ({canonical or actual})"
+                    return str(result.get("result") or output)
+            return output
         except subprocess.TimeoutExpired:
             raise TimeoutError(f"{self.cli.label} took longer than {self.TIMEOUT}s") from None
         finally:

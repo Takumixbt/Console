@@ -222,7 +222,7 @@ def model_game(monkeypatch):
         models.Group("anthropic", "Anthropic", ("claude-a", "claude-b", "claude-c")),
         models.Group("xai", "xAI", ("grok-1",)),
     ]
-    monkeypatch.setattr(models, "for_opponent", lambda kind: groups if kind == "model" else [])
+    monkeypatch.setattr(models, "for_opponent", lambda kind, refresh=False: groups if kind == "model" else [])
     g = ChessGame()
     g.level = 0
     g.opp_index = [k for k, _ in g.opp_options].index("model")

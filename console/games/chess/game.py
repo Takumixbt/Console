@@ -177,7 +177,9 @@ class ChessGame(Game):
 
     def _load_groups(self, kind: str) -> None:
         try:
-            groups = models.for_opponent(kind)
+            # Catalogs are per signed-in host account. Refresh on each game so
+            # a provider/account change is reflected without waiting for cache TTL.
+            groups = models.for_opponent(kind, refresh=True)
         except Exception:
             groups = []
         if self._groups_for != kind:
@@ -515,8 +517,7 @@ class ChessGame(Game):
                 return f"the one Hermes is running ({current})" if current else "the one Hermes is running"
             return "whatever this host is set to"
         model = group.models[self.model_index % len(group.models)]
-        prefix = f"{group.slug}/" if group.slug else ""
-        shown = model[len(prefix) :] if prefix and model.startswith(prefix) else model
+        shown = model
         return f"{shown}   {self.model_index % len(group.models) + 1}/{len(group.models)}"
 
     def _last_san(self) -> str:

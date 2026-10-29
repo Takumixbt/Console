@@ -1,6 +1,6 @@
 # Console
 
-Play chess in your terminal. Your opponent can be **Claude Code**, **Codex**, **OpenCode**, **Hermes**, Stockfish, or a small built-in engine. Chrome's dino game is in the box too, one command away.
+An agent-powered terminal arcade: play chess against **Claude Code**, **Codex**, **OpenCode** or **Hermes** using the models available to your signed-in account, then switch models in the game menu. Stockfish, a built-in engine and Chrome's dino are included too.
 
 ![Chess in Console](docs/console-chess.gif)
 
@@ -87,7 +87,7 @@ console chess
 # Opponent: Claude Code / Codex / OpenCode / Stockfish / Built-in engine / API model
 ```
 
-Set `CONSOLE_CLAUDE_MODEL`, `CONSOLE_CODEX_MODEL` or `CONSOLE_OPENCODE_MODEL` to pin a model for that opponent. Expect a few seconds per move.
+The model menu refreshes from the host's current CLI/config when a game starts. OpenCode shows full `provider/model` IDs; Claude family aliases resolve to the actual model ID on the first move. Each host enforces its own subscription and organization access when a model is used. Set `CONSOLE_CLAUDE_MODEL`, `CONSOLE_CODEX_MODEL` or `CONSOLE_OPENCODE_MODEL` to pin a model for that opponent. Expect a few seconds per move.
 
 ## Opponents
 
